@@ -11,6 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from config import config
+from data.content import CONTACTS_TEXT, NEW_PRODUCTS_TEXT, PROMOTIONS_TEXT
 from data.schedule import ROUTE_TITLE, SCHEDULE_PAGES, VISIT_DAYS
 from keyboards import feedback_types_keyboard, main_menu_keyboard, schedule_nav_keyboard
 from services.storage import get_storage
@@ -77,31 +78,19 @@ async def schedule_page_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data == "menu:promotions")
 async def promotions_handler(callback: CallbackQuery):
-    await safe_edit_or_send(
-        callback,
-        'Актуальні акції будуть з’являтися тут. Також ми публікуємо їх у каналі “Свіже з ферми | Приладний”.',
-        main_menu_keyboard(),
-    )
+    await safe_edit_or_send(callback, PROMOTIONS_TEXT, main_menu_keyboard())
     await callback.answer()
 
 
 @router.callback_query(F.data == "menu:new_products")
 async def new_products_handler(callback: CallbackQuery):
-    await safe_edit_or_send(
-        callback,
-        "Новинки маршруту будуть з’являтися тут. Слідкуйте за оновленнями у каналі.",
-        main_menu_keyboard(),
-    )
+    await safe_edit_or_send(callback, NEW_PRODUCTS_TEXT, main_menu_keyboard())
     await callback.answer()
 
 
 @router.callback_query(F.data == "menu:contacts")
 async def contacts_handler(callback: CallbackQuery):
-    await safe_edit_or_send(
-        callback,
-        'З питань маршруту, розкладу або звернень скористайтесь розділом “Залишити звернення”.',
-        main_menu_keyboard(),
-    )
+    await safe_edit_or_send(callback, CONTACTS_TEXT, main_menu_keyboard())
     await callback.answer()
 
 
