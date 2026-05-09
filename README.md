@@ -50,3 +50,13 @@ python bot.py
 
 ## Примітка
 У першій версії розклад береться тільки з `data/schedule.py` (хардкод).
+
+## How to update promotions and new products with images
+- Додавайте зображення акцій у папку `media/promotions/`.
+- Додавайте зображення новинок у папку `media/new_products/`.
+- Поточні очікувані імена файлів:
+  - `media/promotions/gauda_maasdam.jpg`
+  - `media/promotions/butter.jpg`
+  - `media/new_products/tertyi_pyrih.jpg`
+- Оновлюйте ціни та тексти в `data/content.py`.
+- Після змін перезапустіть бота.

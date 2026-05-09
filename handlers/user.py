@@ -2,16 +2,18 @@
 
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, FSInputFile, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import config
-from data.content import CONTACTS_TEXT, NEW_PRODUCTS_TEXT, PROMOTIONS_TEXT
+from data.content import CONTACTS_TEXT, NEW_PRODUCTS, NEW_PRODUCTS_TEXT, PROMOTIONS, PROMOTIONS_TEXT
 from data.schedule import ROUTE_TITLE, SCHEDULE_PAGES, VISIT_DAYS
 from keyboards import feedback_types_keyboard, main_menu_keyboard, schedule_nav_keyboard
 from services.storage import get_storage
@@ -51,8 +53,44 @@ def build_schedule_text(page: int) -> str:
     return f"{ROUTE_TITLE}\n{VISIT_DAYS}\n\n{stops}"
 
 
+def build_promotion_caption(item: dict) -> str:
+    return (
+        f"🔥 {item.get('title', '')}\n\n"
+        f"Ціна: {item.get('price', '')}\n"
+        f"Період: {item.get('period', '')}\n"
+        f"Доступно: {item.get('availability', '')}\n\n"
+        f"{item.get('description', '')}\n\n"
+        "Кількість товару може бути обмежена.\n"
+        "Деталі уточнюйте у продавця на маршруті."
+    )
+
+
+def build_new_product_caption(item: dict) -> str:
+    return (
+        f"🆕 {item.get('title', '')}\n\n"
+        f"Ціна: {item.get('price', '')}\n"
+        f"Доступно: {item.get('availability', '')}\n\n"
+        f"{item.get('description', '')}\n\n"
+        "Запитуйте у продавця на маршруті."
+    )
+
+
+async def send_card(message: Message, caption: str, image_path: str | None) -> None:
+    if image_path and Path(image_path).is_file():
+        await message.answer_photo(photo=FSInputFile(image_path), caption=caption)
+        return
+    await message.answer(caption)
+
+
+def back_to_menu_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ До меню", callback_data="menu:main")
+    return builder.as_markup()
+
+
 @router.message(CommandStart())
-async def start_handler(message: Message):
+async def start_handler(message: Message, state: FSMContext):
+    await state.clear()
     await message.answer(START_TEXT, reply_markup=main_menu_keyboard())
 
 
@@ -78,13 +116,23 @@ async def schedule_page_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data == "menu:promotions")
 async def promotions_handler(callback: CallbackQuery):
-    await safe_edit_or_send(callback, PROMOTIONS_TEXT, main_menu_keyboard())
+    if PROMOTIONS:
+        for item in PROMOTIONS:
+            await send_card(callback.message, build_promotion_caption(item), item.get("image_path"))
+        await callback.message.answer("⬅️ До меню", reply_markup=back_to_menu_keyboard())
+    else:
+        await safe_edit_or_send(callback, PROMOTIONS_TEXT, main_menu_keyboard())
     await callback.answer()
 
 
 @router.callback_query(F.data == "menu:new_products")
 async def new_products_handler(callback: CallbackQuery):
-    await safe_edit_or_send(callback, NEW_PRODUCTS_TEXT, main_menu_keyboard())
+    if NEW_PRODUCTS:
+        for item in NEW_PRODUCTS:
+            await send_card(callback.message, build_new_product_caption(item), item.get("image_path"))
+        await callback.message.answer("⬅️ До меню", reply_markup=back_to_menu_keyboard())
+    else:
+        await safe_edit_or_send(callback, NEW_PRODUCTS_TEXT, main_menu_keyboard())
     await callback.answer()
 
 
