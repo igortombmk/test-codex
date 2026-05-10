@@ -50,16 +50,15 @@ SCHEDULE_OVERVIEW_TEXT = (
     '🚚 Маршрут №10 “Виноградар”\n\n'
     'Ми приїжджаємо:\n'
     '📅 середа та неділя\n\n'
-    'Щоб знайти свою точку, оберіть частину дня:\n\n'
-    '🌅 Ранок: 09:15-12:20\n'
-    '🌤 День: 12:30-15:05\n'
-    '🌇 Вечір: 15:10-17:45'
+    'Щоб знайти свою точку, оберіть вулицю або найближчий район:'
 )
 
 SECTION_CONFIG = {
-    "morning": {"title": "🌅 Ранок", "range": (0, 7)},
-    "day": {"title": "🌤 День", "range": (7, 13)},
-    "evening": {"title": "🌇 Вечір", "range": (13, 19)},
+    "tyraspolska_stetsenka": {"title": "Тираспольська / Стеценка", "indexes": (0, 1)},
+    "vyhovskoho_hrechka": {"title": "Виговського / Гречка", "indexes": (2, 3, 4, 5, 6)},
+    "gongadze": {"title": "Гонгадзе", "indexes": (7, 8, 9, 10, 11, 18)},
+    "svobody_poryka": {"title": "Свободи / Порика", "indexes": (12, 13, 14)},
+    "pravdy_yevropeiskoho_soiuzu": {"title": "Правди / Європейського Союзу", "indexes": (15, 16, 17)},
 }
 
 class FeedbackForm(StatesGroup):
@@ -108,9 +107,9 @@ async def send_card(message: Message, caption: str, image_path: str | None) -> N
 
 def build_schedule_section_text(section: str) -> str:
     config = SECTION_CONFIG[section]
-    start, end = config["range"]
     formatted_stops = []
-    for stop in SCHEDULE_STOPS[start:end]:
+    for index in config["indexes"]:
+        stop = SCHEDULE_STOPS[index]
         number_time, details = stop.split(" — ", maxsplit=1)
         address, note = details.split(", ", maxsplit=1)
         formatted_stops.append(f"{number_time}\n📍 {address}\n{note}")
@@ -152,7 +151,7 @@ async def schedule_section_handler(callback: CallbackQuery):
     await safe_edit_or_send(
         callback,
         build_schedule_section_text(section),
-        schedule_section_nav_keyboard(section),
+        schedule_section_nav_keyboard(),
     )
     await callback.answer()
 

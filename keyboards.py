@@ -19,28 +19,24 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
 
 
 def schedule_sections_keyboard() -> InlineKeyboardMarkup:
-    """Keyboard for selecting schedule day section."""
+    """Keyboard for selecting schedule street/zone section."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="🌅 Ранок", callback_data="schedule:section:morning")
-    builder.button(text="🌤 День", callback_data="schedule:section:day")
-    builder.button(text="🌇 Вечір", callback_data="schedule:section:evening")
+    builder.button(text="Тираспольська / Стеценка", callback_data="schedule:section:tyraspolska_stetsenka")
+    builder.button(text="Виговського / Гречка", callback_data="schedule:section:vyhovskoho_hrechka")
+    builder.button(text="Гонгадзе", callback_data="schedule:section:gongadze")
+    builder.button(text="Свободи / Порика", callback_data="schedule:section:svobody_poryka")
+    builder.button(text="Правди / Європейського Союзу", callback_data="schedule:section:pravdy_yevropeiskoho_soiuzu")
     builder.button(text="⬅️ До меню", callback_data="menu:main")
     builder.adjust(1)
     return builder.as_markup()
 
 
-def schedule_section_nav_keyboard(section: str) -> InlineKeyboardMarkup:
-    """Navigation keyboard for schedule sections."""
+def schedule_section_nav_keyboard() -> InlineKeyboardMarkup:
+    """Navigation keyboard for schedule street/zone sections."""
     builder = InlineKeyboardBuilder()
-    if section == "morning":
-        builder.button(text="🌤 День", callback_data="schedule:section:day")
-    elif section == "day":
-        builder.button(text="🌅 Ранок", callback_data="schedule:section:morning")
-        builder.button(text="🌇 Вечір", callback_data="schedule:section:evening")
-    elif section == "evening":
-        builder.button(text="🌤 День", callback_data="schedule:section:day")
+    builder.button(text="⬅️ До списку вулиць", callback_data="menu:schedule")
     builder.button(text="⬅️ До меню", callback_data="menu:main")
-    builder.adjust(2, 1)
+    builder.adjust(1)
     return builder.as_markup()
 
 
