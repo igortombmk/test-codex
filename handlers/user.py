@@ -12,12 +12,14 @@ from aiogram.types import CallbackQuery, FSInputFile, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import config
-from data.content import CONTACTS_TEXT, NEW_PRODUCTS, NEW_PRODUCTS_TEXT, PROMOTIONS, PROMOTIONS_TEXT
+from data.content import CONTACTS_TEXT, NEW_PRODUCTS, NEW_PRODUCTS_TEXT, PROMOTIONS
 from data.schedule import SCHEDULE_STOPS
 from keyboards import (
     feedback_cancel_keyboard,
     feedback_types_keyboard,
     main_menu_keyboard,
+    promotion_card_nav_keyboard,
+    promotions_list_keyboard,
     schedule_section_nav_keyboard,
     schedule_sections_keyboard,
 )
@@ -159,12 +161,29 @@ async def schedule_section_handler(callback: CallbackQuery):
 @router.callback_query(F.data == "menu:promotions")
 async def promotions_handler(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    if PROMOTIONS:
-        for item in PROMOTIONS:
-            await send_card(callback.message, build_promotion_caption(item), item.get("image_path"))
-        await callback.message.answer("⬅️ До меню", reply_markup=back_to_menu_keyboard())
-    else:
-        await safe_edit_or_send(callback, PROMOTIONS_TEXT, main_menu_keyboard())
+    promotions_text = (
+        "🔥 Актуальні акції | Виноградар\n\n"
+        "Оберіть акцію, яку хочете переглянути:\n\n"
+        "1. Гауда та Маасдам - 480 грн/кг\n"
+        "2. Солодковершкове масло - 42 грн / 100 г"
+    )
+    await safe_edit_or_send(callback, promotions_text, promotions_list_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("promotions:item:"))
+async def promotion_item_handler(callback: CallbackQuery):
+    try:
+        item_index = int(callback.data.split(":")[-1])
+    except ValueError:
+        await callback.answer()
+        return
+    if item_index < 0 or item_index >= len(PROMOTIONS):
+        await callback.answer()
+        return
+    item = PROMOTIONS[item_index]
+    await send_card(callback.message, build_promotion_caption(item), item.get("image_path"))
+    await callback.message.answer("Оберіть подальшу дію:", reply_markup=promotion_card_nav_keyboard())
     await callback.answer()
 
 
@@ -210,7 +229,11 @@ async def feedback_type_selected(callback: CallbackQuery, state: FSMContext):
     request_type = FEEDBACK_TYPE_MAP.get(callback.data.split(":", maxsplit=2)[-1], "")
     await state.update_data(request_type=request_type)
     await state.set_state(FeedbackForm.customer_name)
-    await callback.message.answer("Напишіть ваше ім’я:", reply_markup=feedback_cancel_keyboard())
+    await callback.message.answer(
+        "Крок 1 із 4\n\n"
+        "Напишіть ваше ім’я внизу, у полі “Повідомлення”, і натисніть кнопку відправки.",
+        reply_markup=feedback_cancel_keyboard(),
+    )
     await callback.answer()
 
 
@@ -219,7 +242,8 @@ async def feedback_name(message: Message, state: FSMContext):
     await state.update_data(customer_name=message.text.strip())
     await state.set_state(FeedbackForm.contact)
     await message.answer(
-        "Напишіть ваш телефон або Telegram для зворотного зв’язку:",
+        "Крок 2 із 4\n\n"
+        "Напишіть ваш телефон або Telegram внизу, у полі “Повідомлення”, і натисніть кнопку відправки.",
         reply_markup=feedback_cancel_keyboard(),
     )
 
@@ -228,14 +252,24 @@ async def feedback_name(message: Message, state: FSMContext):
 async def feedback_contact(message: Message, state: FSMContext):
     await state.update_data(contact=message.text.strip())
     await state.set_state(FeedbackForm.stop_address)
-    await message.answer("Напишіть адресу або точку зупинки:", reply_markup=feedback_cancel_keyboard())
+    await message.answer(
+        "Крок 3 із 4\n\n"
+        "Напишіть адресу або точку зупинки внизу, у полі “Повідомлення”.\n\n"
+        "Наприклад: вул. Гонгадзе 18.",
+        reply_markup=feedback_cancel_keyboard(),
+    )
 
 
 @router.message(FeedbackForm.stop_address)
 async def feedback_stop(message: Message, state: FSMContext):
     await state.update_data(stop_address=message.text.strip())
     await state.set_state(FeedbackForm.message)
-    await message.answer("Опишіть ситуацію коротко:", reply_markup=feedback_cancel_keyboard())
+    await message.answer(
+        "Крок 4 із 4\n\n"
+        "Коротко опишіть ситуацію внизу, у полі “Повідомлення”.\n\n"
+        "Наприклад: не було масла / хочу залишити подяку / є пропозиція.",
+        reply_markup=feedback_cancel_keyboard(),
+    )
 
 
 @router.message(FeedbackForm.message)
