@@ -55,3 +55,22 @@ def feedback_cancel_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="❌ Скасувати", callback_data="feedback:cancel")
     return builder.as_markup()
+
+
+def promotions_list_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard for selecting a single promotion card."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🧀 Гауда та Маасдам", callback_data="promotions:item:0")
+    builder.button(text="🧈 Солодковершкове масло", callback_data="promotions:item:1")
+    builder.button(text="⬅️ До меню", callback_data="menu:main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def promotion_card_nav_keyboard() -> InlineKeyboardMarkup:
+    """Navigation keyboard for single promotion card view."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ До акцій", callback_data="menu:promotions")
+    builder.button(text="⬅️ До меню", callback_data="menu:main")
+    builder.adjust(1)
+    return builder.as_markup()
