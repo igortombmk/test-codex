@@ -5,7 +5,7 @@ from pathlib import Path
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, FSInputFile, Message
@@ -13,9 +13,14 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import config
 from data.content import CONTACTS_TEXT, NEW_PRODUCTS, NEW_PRODUCTS_TEXT, PROMOTIONS, PROMOTIONS_TEXT
-from data.schedule import ROUTE_TITLE, SCHEDULE_PAGES, VISIT_DAYS
-from keyboards import feedback_types_keyboard, main_menu_keyboard, schedule_nav_keyboard
-from keyboards import feedback_cancel_keyboard
+from data.schedule import SCHEDULE_STOPS
+from keyboards import (
+    feedback_cancel_keyboard,
+    feedback_types_keyboard,
+    main_menu_keyboard,
+    schedule_section_nav_keyboard,
+    schedule_sections_keyboard,
+)
 from services.storage import get_storage
 
 
@@ -41,6 +46,22 @@ FEEDBACK_TYPE_MAP = {
 }
 
 
+SCHEDULE_OVERVIEW_TEXT = (
+    '🚚 Маршрут №10 “Виноградар”\n\n'
+    'Ми приїжджаємо:\n'
+    '📅 середа та неділя\n\n'
+    'Щоб знайти свою точку, оберіть частину дня:\n\n'
+    '🌅 Ранок: 09:15-12:20\n'
+    '🌤 День: 12:30-15:05\n'
+    '🌇 Вечір: 15:10-17:45'
+)
+
+SECTION_CONFIG = {
+    "morning": {"title": "🌅 Ранок", "range": (0, 7)},
+    "day": {"title": "🌤 День", "range": (7, 13)},
+    "evening": {"title": "🌇 Вечір", "range": (13, 19)},
+}
+
 class FeedbackForm(StatesGroup):
     request_type = State()
     customer_name = State()
@@ -54,11 +75,6 @@ async def safe_edit_or_send(callback: CallbackQuery, text: str, reply_markup):
         await callback.message.edit_text(text, reply_markup=reply_markup)
     except TelegramBadRequest:
         await callback.message.answer(text, reply_markup=reply_markup)
-
-
-def build_schedule_text(page: int) -> str:
-    stops = "\n".join(SCHEDULE_PAGES[page])
-    return f"{ROUTE_TITLE}\n{VISIT_DAYS}\n\n{stops}"
 
 
 def build_promotion_caption(item: dict) -> str:
@@ -90,6 +106,17 @@ async def send_card(message: Message, caption: str, image_path: str | None) -> N
     await message.answer(caption)
 
 
+def build_schedule_section_text(section: str) -> str:
+    config = SECTION_CONFIG[section]
+    start, end = config["range"]
+    formatted_stops = []
+    for stop in SCHEDULE_STOPS[start:end]:
+        number_time, details = stop.split(" — ", maxsplit=1)
+        address, note = details.split(", ", maxsplit=1)
+        formatted_stops.append(f"{number_time}\n📍 {address}\n{note}")
+    return f"🚚 Маршрут №10 “Виноградар”\n\n{config['title']}\n\n" + "\n\n".join(formatted_stops)
+
+
 def back_to_menu_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="⬅️ До меню", callback_data="menu:main")
@@ -112,14 +139,21 @@ async def menu_handler(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "menu:schedule")
 async def schedule_handler(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await safe_edit_or_send(callback, build_schedule_text(1), schedule_nav_keyboard(1))
+    await safe_edit_or_send(callback, SCHEDULE_OVERVIEW_TEXT, schedule_sections_keyboard())
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("schedule:page:"))
-async def schedule_page_handler(callback: CallbackQuery):
-    page = int(callback.data.split(":")[-1])
-    await safe_edit_or_send(callback, build_schedule_text(page), schedule_nav_keyboard(page))
+@router.callback_query(F.data.startswith("schedule:section:"))
+async def schedule_section_handler(callback: CallbackQuery):
+    section = callback.data.split(":")[-1]
+    if section not in SECTION_CONFIG:
+        await callback.answer()
+        return
+    await safe_edit_or_send(
+        callback,
+        build_schedule_section_text(section),
+        schedule_section_nav_keyboard(section),
+    )
     await callback.answer()
 
 
@@ -246,3 +280,37 @@ async def feedback_message(message: Message, state: FSMContext):
 
     await message.answer(confirmation_text, reply_markup=main_menu_keyboard())
     await state.clear()
+
+
+@router.message(
+    StateFilter(FeedbackForm),
+    F.text.in_({
+        "🚚 Коли ми приїдемо?",
+        "🔥 Акції",
+        "🆕 Новинка",
+        "☎️ Контакти",
+        "✍️ Написати нам",
+    }),
+)
+async def feedback_menu_escape(message: Message, state: FSMContext):
+    await state.clear()
+    mapping = {
+        "🚚 Коли ми приїдемо?": (SCHEDULE_OVERVIEW_TEXT, schedule_sections_keyboard()),
+        "🔥 Акції": ("Натисніть кнопку «🔥 Акції» в меню нижче.", main_menu_keyboard()),
+        "🆕 Новинка": ("Натисніть кнопку «🆕 Новинка» в меню нижче.", main_menu_keyboard()),
+        "☎️ Контакти": (CONTACTS_TEXT, main_menu_keyboard()),
+        "✍️ Написати нам": ("Оберіть, що саме ви хочете написати:", feedback_types_keyboard()),
+    }
+    text, keyboard = mapping[message.text]
+    if message.text == "✍️ Написати нам":
+        await state.set_state(FeedbackForm.request_type)
+    await message.answer(text, reply_markup=keyboard)
+
+
+@router.message(F.text)
+async def fallback_text_handler(message: Message, state: FSMContext):
+    if await state.get_state() is None:
+        await message.answer(
+            "Я вас зрозумів.\n\nОберіть, будь ласка, потрібний розділ нижче:",
+            reply_markup=main_menu_keyboard(),
+        )
