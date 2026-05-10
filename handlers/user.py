@@ -47,6 +47,46 @@ FEEDBACK_TYPE_MAP = {
     "❤️ Подяка": "Подяка",
 }
 
+FEEDBACK_STEP4_TEXTS = {
+    "Скарга": (
+        "Крок 4 із 4\n\n"
+        "Коротко опишіть скаргу внизу, у полі “Повідомлення”.\n\n"
+        "Наприклад:\n"
+        "- не було товару;\n"
+        "- не сподобалась якість;\n"
+        "- машина не приїхала за графіком;\n"
+        "- було некоректне обслуговування."
+    ),
+    "Подяка": (
+        "Крок 4 із 4\n\n"
+        "Напишіть вашу подяку внизу, у полі “Повідомлення”.\n\n"
+        "Наприклад:\n"
+        "- дякую за якісний товар;\n"
+        "- продавець гарно обслуговує;\n"
+        "- подобається продукція;\n"
+        "- зручно, що машина приїжджає за графіком."
+    ),
+    "Пропозиція": (
+        "Крок 4 із 4\n\n"
+        "Напишіть вашу пропозицію внизу, у полі “Повідомлення”.\n\n"
+        "Наприклад:\n"
+        "- додати новий товар;\n"
+        "- змінити час приїзду;\n"
+        "- додати ще одну точку зупинки;\n"
+        "- зробити акцію на певний товар."
+    ),
+    "Питання": (
+        "Крок 4 із 4\n\n"
+        "Напишіть ваше питання внизу, у полі “Повідомлення”.\n\n"
+        "Наприклад:\n"
+        "- коли буде наступний приїзд;\n"
+        "- чи буде товар в наявності;\n"
+        "- яка ціна на товар;\n"
+        "- де найближча точка зупинки."
+    ),
+}
+
+
 
 SCHEDULE_OVERVIEW_TEXT = (
     '🚚 Маршрут №10 “Виноградар”\n\n'
@@ -262,14 +302,17 @@ async def feedback_contact(message: Message, state: FSMContext):
 
 @router.message(FeedbackForm.stop_address)
 async def feedback_stop(message: Message, state: FSMContext):
-    await state.update_data(stop_address=message.text.strip())
-    await state.set_state(FeedbackForm.message)
-    await message.answer(
+    data = await state.get_data()
+    request_type = data.get("request_type", "")
+    step4_text = FEEDBACK_STEP4_TEXTS.get(
+        request_type,
         "Крок 4 із 4\n\n"
         "Коротко опишіть ситуацію внизу, у полі “Повідомлення”.\n\n"
         "Наприклад: не було масла / хочу залишити подяку / є пропозиція.",
-        reply_markup=feedback_cancel_keyboard(),
     )
+    await state.update_data(stop_address=message.text.strip())
+    await state.set_state(FeedbackForm.message)
+    await message.answer(step4_text, reply_markup=feedback_cancel_keyboard())
 
 
 @router.message(FeedbackForm.message)
