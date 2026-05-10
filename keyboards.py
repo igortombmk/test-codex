@@ -10,20 +10,36 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="🚚 Коли ми приїдемо?", callback_data="menu:schedule")
     builder.button(text="🔥 Акції", callback_data="menu:promotions")
     builder.button(text="🆕 Новинка", callback_data="menu:new_products")
-    builder.button(text="☎️ Подзвонити / контакти", callback_data="menu:contacts")
+    builder.button(text="☎️ Контакти", callback_data="menu:contacts")
     builder.button(text="✍️ Написати нам", callback_data="menu:feedback")
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
 
-def schedule_nav_keyboard(page: int) -> InlineKeyboardMarkup:
-    """Navigation keyboard for schedule pages."""
+
+
+def schedule_sections_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard for selecting schedule day section."""
     builder = InlineKeyboardBuilder()
-    if page > 1:
-        builder.button(text="⬅️ Назад", callback_data=f"schedule:page:{page-1}")
-    if page < 3:
-        builder.button(text="Наступна частина ➡️", callback_data=f"schedule:page:{page+1}")
-    builder.button(text="До меню", callback_data="menu:main")
+    builder.button(text="🌅 Ранок", callback_data="schedule:section:morning")
+    builder.button(text="🌤 День", callback_data="schedule:section:day")
+    builder.button(text="🌇 Вечір", callback_data="schedule:section:evening")
+    builder.button(text="⬅️ До меню", callback_data="menu:main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def schedule_section_nav_keyboard(section: str) -> InlineKeyboardMarkup:
+    """Navigation keyboard for schedule sections."""
+    builder = InlineKeyboardBuilder()
+    if section == "morning":
+        builder.button(text="🌤 День", callback_data="schedule:section:day")
+    elif section == "day":
+        builder.button(text="🌅 Ранок", callback_data="schedule:section:morning")
+        builder.button(text="🌇 Вечір", callback_data="schedule:section:evening")
+    elif section == "evening":
+        builder.button(text="🌤 День", callback_data="schedule:section:day")
+    builder.button(text="⬅️ До меню", callback_data="menu:main")
     builder.adjust(2, 1)
     return builder.as_markup()
 
