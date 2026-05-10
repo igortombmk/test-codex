@@ -1,7 +1,6 @@
 """User-facing bot handlers."""
 
 import logging
-from datetime import datetime
 from pathlib import Path
 
 from aiogram import F, Router
@@ -16,6 +15,7 @@ from config import config
 from data.content import CONTACTS_TEXT, NEW_PRODUCTS, NEW_PRODUCTS_TEXT, PROMOTIONS, PROMOTIONS_TEXT
 from data.schedule import ROUTE_TITLE, SCHEDULE_PAGES, VISIT_DAYS
 from keyboards import feedback_types_keyboard, main_menu_keyboard, schedule_nav_keyboard
+from keyboards import feedback_cancel_keyboard
 from services.storage import get_storage
 
 
@@ -26,11 +26,19 @@ storage = get_storage(config)
 
 START_TEXT = (
     'Вітаємо у боті “Свіже з ферми | Виноградар”.\n\n'
-    'Тут ви можете:\n'
-    '- переглянути розклад приїздів;\n'
-    '- дізнатися про актуальні акції;\n'
-    '- залишити питання, пропозицію або скаргу.'
+    'Тут можна швидко:\n'
+    '- дізнатися, коли ми приїдемо;\n'
+    '- подивитися акції;\n'
+    '- зв’язатися з нами.\n\n'
+    'Оберіть потрібний розділ нижче.'
 )
+
+FEEDBACK_TYPE_MAP = {
+    "❓ Питання": "Питання",
+    "⚠️ Скарга": "Скарга",
+    "💡 Пропозиція": "Пропозиція",
+    "❤️ Подяка": "Подяка",
+}
 
 
 class FeedbackForm(StatesGroup):
@@ -102,7 +110,8 @@ async def menu_handler(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data == "menu:schedule")
-async def schedule_handler(callback: CallbackQuery):
+async def schedule_handler(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     await safe_edit_or_send(callback, build_schedule_text(1), schedule_nav_keyboard(1))
     await callback.answer()
 
@@ -115,7 +124,8 @@ async def schedule_page_handler(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "menu:promotions")
-async def promotions_handler(callback: CallbackQuery):
+async def promotions_handler(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     if PROMOTIONS:
         for item in PROMOTIONS:
             await send_card(callback.message, build_promotion_caption(item), item.get("image_path"))
@@ -126,7 +136,8 @@ async def promotions_handler(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "menu:new_products")
-async def new_products_handler(callback: CallbackQuery):
+async def new_products_handler(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     if NEW_PRODUCTS:
         for item in NEW_PRODUCTS:
             await send_card(callback.message, build_new_product_caption(item), item.get("image_path"))
@@ -137,7 +148,8 @@ async def new_products_handler(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "menu:contacts")
-async def contacts_handler(callback: CallbackQuery):
+async def contacts_handler(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     await safe_edit_or_send(callback, CONTACTS_TEXT, main_menu_keyboard())
     await callback.answer()
 
@@ -145,16 +157,27 @@ async def contacts_handler(callback: CallbackQuery):
 @router.callback_query(F.data == "menu:feedback")
 async def feedback_start(callback: CallbackQuery, state: FSMContext):
     await state.set_state(FeedbackForm.request_type)
-    await safe_edit_or_send(callback, "Оберіть тип звернення:", feedback_types_keyboard())
+    await safe_edit_or_send(callback, "Оберіть, що саме ви хочете написати:", feedback_types_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "feedback:cancel")
+async def feedback_cancel(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await safe_edit_or_send(
+        callback,
+        "Дію скасовано. Ви можете обрати потрібний розділ у меню.",
+        main_menu_keyboard(),
+    )
     await callback.answer()
 
 
 @router.callback_query(FeedbackForm.request_type, F.data.startswith("feedback:type:"))
 async def feedback_type_selected(callback: CallbackQuery, state: FSMContext):
-    request_type = callback.data.split(":", maxsplit=2)[-1]
+    request_type = FEEDBACK_TYPE_MAP.get(callback.data.split(":", maxsplit=2)[-1], "")
     await state.update_data(request_type=request_type)
     await state.set_state(FeedbackForm.customer_name)
-    await callback.message.answer("Введіть ваше ім’я.")
+    await callback.message.answer("Напишіть ваше ім’я:", reply_markup=feedback_cancel_keyboard())
     await callback.answer()
 
 
@@ -162,21 +185,24 @@ async def feedback_type_selected(callback: CallbackQuery, state: FSMContext):
 async def feedback_name(message: Message, state: FSMContext):
     await state.update_data(customer_name=message.text.strip())
     await state.set_state(FeedbackForm.contact)
-    await message.answer("Введіть телефон або Telegram для зворотного зв’язку.")
+    await message.answer(
+        "Напишіть ваш телефон або Telegram для зворотного зв’язку:",
+        reply_markup=feedback_cancel_keyboard(),
+    )
 
 
 @router.message(FeedbackForm.contact)
 async def feedback_contact(message: Message, state: FSMContext):
     await state.update_data(contact=message.text.strip())
     await state.set_state(FeedbackForm.stop_address)
-    await message.answer("Вкажіть адресу або точку зупинки.")
+    await message.answer("Напишіть адресу або точку зупинки:", reply_markup=feedback_cancel_keyboard())
 
 
 @router.message(FeedbackForm.stop_address)
 async def feedback_stop(message: Message, state: FSMContext):
     await state.update_data(stop_address=message.text.strip())
     await state.set_state(FeedbackForm.message)
-    await message.answer("Опишіть ситуацію.")
+    await message.answer("Опишіть ситуацію коротко:", reply_markup=feedback_cancel_keyboard())
 
 
 @router.message(FeedbackForm.message)
@@ -190,25 +216,26 @@ async def feedback_message(message: Message, state: FSMContext):
     saved = storage.save_request(data)
 
     admin_text = (
-        "Нове звернення:\n"
+        "📝 Нове повідомлення | Виноградар\n\n"
         f"Тип: {data.get('request_type', '')}\n"
         f"Клієнт: {data.get('customer_name', '')}\n"
         f"Контакт: {data.get('contact', '')}\n"
         f"Точка: {data.get('stop_address', '')}\n"
-        f"Текст: {data.get('message', '')}\n"
-        f"Час: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        "\nТекст:\n"
+        f"{data.get('message', '')}\n\n"
+        "Статус: new"
     )
 
     if config.admin_telegram_id:
         try:
             await message.bot.send_message(config.admin_telegram_id, admin_text)
         except Exception as exc:
-            logger.exception("Failed to send admin notification: %s", exc)
+            logger.error("Failed to send admin notification: %s", exc)
     else:
         logger.warning("ADMIN_TELEGRAM_ID is empty. Admin notification skipped")
 
     confirmation_text = (
-        "Дякуємо. Ваше звернення прийнято.\n"
+        "Дякуємо. Ваше повідомлення прийнято.\n"
         "Ми передамо його відповідальному по маршруту “Виноградар”."
     )
     if not saved:
